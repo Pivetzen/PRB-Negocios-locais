@@ -257,7 +257,7 @@
     </main>
 
     <script>
-        // CONFIGURAÇÕES GERAIS - Lembrar de manter sua URL idêntica do Apps Script aqui
+        // CONFIGURAÇÕES GERAIS - Certifique-se de preencher a URL do seu Apps Script implantado
         const SCRIPT_URL = 'SUA_URL_DO_APPS_SCRIPT_AQUI'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -317,6 +317,10 @@
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
                     body: JSON.stringify({ action: 'auth', email: email, password: password, isRegister: isRegister })
                 });
                 const result = await response.json();
@@ -332,7 +336,7 @@
                     alert(result.message || 'Falha na operação.');
                 }
             } catch(e) {
-                alert('Erro ao se conectar ao servidor da planilha.');
+                alert('Erro ao se conectar ao servidor da planilha. Verifique a URL do script e as permissões.');
             }
         }
 
@@ -352,6 +356,10 @@
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
                     body: JSON.stringify({ action: 'getRecommendations' })
                 });
                 const result = await response.json();
@@ -392,6 +400,11 @@
 
         function populateFilters() {
             const select = document.getElementById('categoryFilter');
+            if(!select) return;
+            
+            // Limpa opções antigas exceto a primeira
+            select.innerHTML = '<option value="todos">Todos os ramos/categorias</option>';
+            
             const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
             categories.forEach(cat => {
                 const opt = document.createElement('option');
@@ -404,7 +417,6 @@
         window.toggleRecommend = async function(bizId) {
             if (!currentUserId) {
                 alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
-                // Se o usuário clicar no botão de recomendar do card sem estar logado, abre automaticamente a tela de login lá em cima pra ele
                 const authSection = document.getElementById('authSection');
                 authSection.style.display = 'flex';
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -422,6 +434,10 @@
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
                     body: JSON.stringify({ action: 'toggleRecommend', bizId: bizId, userId: currentUserId })
                 });
                 await fetchRecommendations(); 
