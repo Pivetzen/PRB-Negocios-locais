@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia de Negócios Locais</title>
+    <style>
+        /* Estilos Globais e Responsividade */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --success: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        /* Área de Filtros */
+        .filter-container {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 24px;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            color: var(--text);
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .filter-select:focus {
+            border-color: var(--primary);
+        }
+
+        /* Lista de Cards */
+        .business-list {
+            width: 100%;
+            max-width: 800px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .business-list {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        /* Estilo do Card */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #edf2f7;
+        }
+
+        .card-category {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .card-description {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .card-info {
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+
+        .card-info p {
+            margin-bottom: 4px;
+        }
+
+        /* Botões */
+        .card-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .btn-contact {
+            background-color: #25d366;
+            color: white;
+        }
+
+        .btn-contact:hover {
+            background-color: #128c7e;
+        }
+
+        .btn-recommend {
+            background-color: #e2e8f0;
+            color: var(--text);
+        }
+
+        .btn-recommend.active {
+            background-color: var(--success);
+            color: white;
+        }
+
+        /* Estados de carregamento e erro */
+        .status-message {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Guia de Negócios da Região</h1>
+        <p>Encontre e recomende os melhores serviços locais</p>
+    </header>
+
+    <div class="filter-container">
+        <select id="categoryFilter" class="filter-select">
+            <option value="todos">Todos os ramos/categorias</option>
+        </select>
+    </div>
+
+    <main id="businessList" class="business-list">
+        <div class="status-message">Carregando negócios parceiros...</div>
+    </main>
+
+    <script>
+        // CONFIGURAÇÃO: Substitua pelo ID longo da sua planilha do Google Sheets
+        const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
+        const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
+        let businesses = [];
+        let recommendedList = JSON.parse(localStorage.getItem('localRecommendations')) || [];
+
+        // Buscar dados da Planilha
+        async function fetchBusinesses() {
+            try {
+                const response = await fetch(SHEET_URL);
+                const text = await response.text();
+                
+                // O Google retorna um formato meio estranho protetivo, precisamos limpar as bordas do JSON
+                const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+                const json = JSON.parse(jsonString);
+                
+                const rows = json.table.rows;
+                const cols = json.table.cols.map(c => c.label);
+
+                // Mapear linhas para objetos estruturados
+                businesses = rows.map((row, index) => {
+                    const rowData = {};
+                    row.c.forEach((cell, i) => {
+                        if (cols[i]) {
+                            rowData[cols[i]] = cell ? cell.v : '';
+                        }
+                    });
+                    // Garante um ID único temporário baseado no index para gerenciar o "recomendo"
+                    rowData.id = `biz-${index}`; 
+                    return rowData;
+                });
+
+                populateFilters();
+                renderBusinesses('todos');
+
+            } catch (error) {
+                console.error("Erro ao carregar dados:", error);
+                document.getElementById('businessList').innerHTML = `
+                    <div class="status-message" style="color: #ef4444;">
+                        Erro ao carregar os negócios. Verifique se o ID da planilha está correto e se ela foi "Publicada na Web".
+                    </div>`;
+            }
+        }
+
+        // Preencher o filtro de ramos dinamicamente
+        function populateFilters() {
+            const select = document.getElementById('categoryFilter');
+            const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
+            
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.innerText = cat;
+                select.appendChild(opt);
+            });
+
+            select.addEventListener('change', (e) => {
+                renderBusinesses(e.target.value);
+            });
+        }
+
+        // Alternar recomendação (Salva localmente no celular/PC do usuário)
+        function toggleRecommend(id) {
+            if (recommendedList.includes(id)) {
+                recommendedList = recommendedList.filter(item => item !== id);
+            } else {
+                recommendedList.push(id);
+            }
+            localStorage.setItem('localRecommendations', JSON.stringify(recommendedList));
+            
+            // Re-renderiza a tela atual para atualizar o visual do botão
+            const currentFilter = document.getElementById('categoryFilter').value;
+            renderBusinesses(currentFilter);
+        }
+
+        // Renderizar os cards na tela
+        function renderBusinesses(filter) {
+            const container = document.getElementById('businessList');
+            container.innerHTML = '';
+
+            const filtered = filter === 'todos' 
+                ? businesses 
+                : businesses.filter(b => b.Categoria === filter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="status-message">Nenhum negócio encontrado nesta categoria.</div>';
+                return;
+            }
+
+            filtered.forEach(biz => {
+                const isRecommended = recommendedList.includes(biz.id);
+                
+                // Limpar número de telefone para o link do WhatsApp
+                const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
+                const whatsappUrl = `https://wa.me/${cleanPhone}`;
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div>
+                        <div class="card-category">${biz.Categoria || 'Geral'}</div>
+                        <div class="card-title">${biz.Nome || 'Sem Nome'}</div>
+                        <div class="card-description">${biz.Descricao || ''}</div>
+                        <div class="card-info">
+                            <p><strong>📍 Endereço:</strong> ${biz.Endereco || 'Não informado'}</p>
+                            <p><strong>📞 Contato:</strong> ${biz.Telefone || 'Não informado'}</p>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        ${cleanPhone ? `<a href="${whatsappUrl}" target="_blank" class="btn btn-contact">WhatsApp</a>` : ''}
+                        <button onclick="toggleRecommend('${biz.id}')" class="btn btn-recommend ${isRecommended ? 'active' : ''}">
+                            ${isRecommended ? '👍 Recomendado!' : '👍 Recomendo'}
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Inicializar aplicação ao carregar a página
+        window.onload = fetchBusinesses;
+    </script>
+</body>
+</html>
