@@ -45,14 +45,23 @@
             margin-bottom: 8px;
         }
 
-        /* Área de Filtros */
-        .filter-container {
+        /* Área de Filtros e Busca */
+        .search-container {
             width: 100%;
             max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
             margin-bottom: 24px;
         }
 
-        .filter-select {
+        @media (min-width: 640px) {
+            .search-container {
+                flex-direction: row;
+            }
+        }
+
+        .search-input, .filter-select {
             width: 100%;
             padding: 12px;
             font-size: 1rem;
@@ -61,11 +70,10 @@
             background-color: var(--card-bg);
             color: var(--text);
             outline: none;
-            cursor: pointer;
             transition: border-color 0.2s;
         }
 
-        .filter-select:focus {
+        .search-input:focus, .filter-select:focus {
             border-color: var(--primary);
         }
 
@@ -171,6 +179,7 @@
             padding: 40px;
             font-size: 1.1rem;
             color: var(--text-light);
+            grid-column: 1 / -1;
         }
     </style>
 </head>
@@ -181,7 +190,8 @@
         <p>Encontre e recomende os melhores serviços locais</p>
     </header>
 
-    <div class="filter-container">
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nome do negócio...">
         <select id="categoryFilter" class="filter-select">
             <option value="todos">Todos os ramos/categorias</option>
         </select>
@@ -192,7 +202,6 @@
     </main>
 
     <script>
-        // CONFIGURAÇÃO: Substitua pelo ID longo da sua planilha do Google Sheets
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
@@ -205,34 +214,36 @@
                 const response = await fetch(SHEET_URL);
                 const text = await response.text();
                 
-                // O Google retorna um formato meio estranho protetivo, precisamos limpar as bordas do JSON
                 const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
                 const json = JSON.parse(jsonString);
                 
                 const rows = json.table.rows;
-                const cols = json.table.cols.map(c => c.label);
-
-                // Mapear linhas para objetos estruturados
+                
+                // Mapeamento alternativo inteligente para evitar falhas de cabeçalho
                 businesses = rows.map((row, index) => {
-                    const rowData = {};
-                    row.c.forEach((cell, i) => {
-                        if (cols[i]) {
-                            rowData[cols[i]] = cell ? cell.v : '';
-                        }
-                    });
-                    // Garante um ID único temporário baseado no index para gerenciar o "recomendo"
-                    rowData.id = `biz-${index}`; 
-                    return rowData;
-                });
+                    // Ignora a linha de cabeçalho caso ela venha junto nos dados ativos
+                    if(row.c[0] && row.c[0].v === "Nome") return null; 
+
+                    return {
+                        id: `biz-${index}`,
+                        Nome: row.c[0] ? row.c[0].v : '',
+                        Categoria: row.c[1] ? row.c[1].v : '',
+                        Telefone: row.c[2] ? row.c[2].v : '',
+                        Endereco: row.c[3] ? row.c[3].v : '',
+                        Descricao: row.c[4] ? row.c[4].v : ''
+                    };
+                }).filter(Boolean);
 
                 populateFilters();
-                renderBusinesses('todos');
+                setupSearch();
+                renderBusinesses();
 
             } catch (error) {
                 console.error("Erro ao carregar dados:", error);
                 document.getElementById('businessList').innerHTML = `
-                    <div class="status-message" style="color: #ef4444;">
-                        Erro ao carregar os negócios. Verifique se o ID da planilha está correto e se ela foi "Publicada na Web".
+                    <div class="status-message" style="color: #ef4444; font-weight: bold;">
+                        Erro ao carregar os negócios.<br><br>
+                        👉 Certifique-se de clicar em "Compartilhar" na Planilha e mudar o acesso de "Restrito" para "Qualquer pessoa com o link".
                     </div>`;
             }
         }
@@ -249,12 +260,16 @@
                 select.appendChild(opt);
             });
 
-            select.addEventListener('change', (e) => {
-                renderBusinesses(e.target.value);
-            });
+            select.addEventListener('change', () => renderBusinesses());
         }
 
-        // Alternar recomendação (Salva localmente no celular/PC do usuário)
+        // Configurar a barra de pesquisa por digitação
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', () => renderBusinesses());
+        }
+
+        // Alternar recomendação (Salva localmente no dispositivo)
         function toggleRecommend(id) {
             if (recommendedList.includes(id)) {
                 recommendedList = recommendedList.filter(item => item !== id);
@@ -262,30 +277,30 @@
                 recommendedList.push(id);
             }
             localStorage.setItem('localRecommendations', JSON.stringify(recommendedList));
-            
-            // Re-renderiza a tela atual para atualizar o visual do botão
-            const currentFilter = document.getElementById('categoryFilter').value;
-            renderBusinesses(currentFilter);
+            renderBusinesses();
         }
 
-        // Renderizar os cards na tela
-        function renderBusinesses(filter) {
+        // Renderizar os cards na tela filtrados
+        function renderBusinesses() {
             const container = document.getElementById('businessList');
             container.innerHTML = '';
 
-            const filtered = filter === 'todos' 
-                ? businesses 
-                : businesses.filter(b => b.Categoria === filter);
+            const selectedCategory = document.getElementById('categoryFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            const filtered = businesses.filter(b => {
+                const matchesCategory = selectedCategory === 'todos' || b.Categoria === selectedCategory;
+                const matchesSearch = b.Nome.toLowerCase().includes(searchTerm);
+                return matchesCategory && matchesSearch;
+            });
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="status-message">Nenhum negócio encontrado nesta categoria.</div>';
+                container.innerHTML = '<div class="status-message">Nenhum negócio encontrado.</div>';
                 return;
             }
 
             filtered.forEach(biz => {
                 const isRecommended = recommendedList.includes(biz.id);
-                
-                // Limpar número de telefone para o link do WhatsApp
                 const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
                 const whatsappUrl = `https://wa.me/${cleanPhone}`;
 
@@ -295,7 +310,7 @@
                     <div>
                         <div class="card-category">${biz.Categoria || 'Geral'}</div>
                         <div class="card-title">${biz.Nome || 'Sem Nome'}</div>
-                        <div class="card-description">${biz.Descricao || ''}</div>
+                        <div class="card-description">${biz.Descricao || 'Sem descrição cadastrada.'}</div>
                         <div class="card-info">
                             <p><strong>📍 Endereço:</strong> ${biz.Endereco || 'Não informado'}</p>
                             <p><strong>📞 Contato:</strong> ${biz.Telefone || 'Não informado'}</p>
@@ -312,7 +327,6 @@
             });
         }
 
-        // Inicializar aplicação ao carregar a página
         window.onload = fetchBusinesses;
     </script>
 </body>
