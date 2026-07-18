@@ -47,24 +47,31 @@
             margin-bottom: 8px;
         }
 
-        /* Barra de Status do Usuário */
-        .user-bar {
+        /* Área de Autenticação Centralizada e Limpa */
+        .auth-container {
             width: 100%;
             max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .user-bar {
+            width: 100%;
             background: var(--card-bg);
             padding: 12px 20px;
             border-radius: 8px;
-            margin-bottom: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             font-size: 0.9rem;
+            border: 1px solid #edf2f7;
         }
 
-        /* Painel de Login e Cadastro */
         .auth-forms {
-            display: none;
+            display: none; /* Escondido por padrão */
             flex-direction: column;
             gap: 10px;
             background: var(--card-bg);
@@ -72,7 +79,7 @@
             border-radius: 12px;
             width: 100%;
             max-width: 400px;
-            margin-bottom: 20px;
+            margin-top: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 1px solid #edf2f7;
         }
@@ -197,6 +204,19 @@
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-danger { background-color: var(--danger); color: white; }
 
+        .btn-trigger-auth {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+            transition: background 0.2s;
+            width: 100%;
+            max-width: 400px;
+        }
+        .btn-trigger-auth:hover { background-color: var(--primary-hover); }
+
         .status-message { text-align: center; padding: 40px; font-size: 1.1rem; color: var(--text-light); grid-column: 1 / -1; }
     </style>
 </head>
@@ -207,16 +227,20 @@
         <p>Encontre e recomende os melhores serviços locais</p>
     </header>
 
-    <!-- Barra Superior de Controle de Usuário -->
-    <div id="userStatus" class="user-bar">Carregando dados de acesso...</div>
-    
-    <!-- Formulário de Login/Cadastro -->
-    <div id="authSection" class="auth-forms">
-        <input type="email" id="authEmail" placeholder="Seu e-mail">
-        <input type="password" id="authPassword" placeholder="Sua senha">
-        <div class="auth-actions">
-            <button id="btnLogin" class="btn btn-primary">Entrar</button>
-            <button id="btnRegister" class="btn btn-recommend">Cadastrar Nova Conta</button>
+    <!-- Seção de Acesso Dinâmica -->
+    <div class="auth-container">
+        <div id="userStatus" style="width: 100%; display: flex; justify-content: center;">
+            <!-- Renderizado dinamicamente pelo JavaScript -->
+        </div>
+        
+        <!-- Formulário Oculto de Login/Cadastro -->
+        <div id="authSection" class="auth-forms">
+            <input type="email" id="authEmail" placeholder="Seu e-mail">
+            <input type="password" id="authPassword" placeholder="Sua senha">
+            <div class="auth-actions">
+                <button id="btnLogin" class="btn btn-primary">Entrar</button>
+                <button id="btnRegister" class="btn btn-recommend">Cadastrar Nova Conta</button>
+            </div>
         </div>
     </div>
 
@@ -233,8 +257,8 @@
     </main>
 
     <script>
-        // CONFIGURAÇÕES GERAIS
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
+        // CONFIGURAÇÕES GERAIS - Lembrar de manter sua URL idêntica do Apps Script aqui
+        const SCRIPT_URL = 'SUA_URL_DO_APPS_SCRIPT_AQUI'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
@@ -249,20 +273,40 @@
             await fetchBusinesses();
         }
 
+        // Altera o visual baseado no estado de login
         function updateUserBar() {
             const userStatus = document.getElementById('userStatus');
             const authSection = document.getElementById('authSection');
             
             if (currentUserId && currentUserEmail) {
-                userStatus.innerHTML = `<div>Logado como: <b>${currentUserEmail}</b></div> <button onclick="logout()" class="btn btn-mini btn-danger">Sair</button>`;
+                // Modo Logado: Mostra a barra estruturada clean
+                userStatus.innerHTML = `
+                    <div class="user-bar">
+                        <div>Logado como: <b>${currentUserEmail}</b></div> 
+                        <button onclick="logout()" class="btn btn-mini btn-danger">Sair</button>
+                    </div>`;
                 authSection.style.display = 'none';
             } else {
-                userStatus.innerHTML = `Navegando como Visitante. Identifique-se para poder recomendar.`;
-                authSection.style.display = 'flex';
+                // Modo Visitante: Mostra APENAS o botão limpo de chamada para ação
+                userStatus.innerHTML = `
+                    <button onclick="toggleAuthForm()" class="btn btn-trigger-auth">
+                        Faça login para recomendar algum serviço
+                    </button>`;
+                authSection.style.display = 'none'; 
             }
         }
 
-        // Função genérica para disparar autenticação (Login ou Cadastro)
+        // Alterna a abertura do painel de login
+        window.toggleAuthForm = function() {
+            const authSection = document.getElementById('authSection');
+            if (authSection.style.display === 'none' || authSection.style.display === '') {
+                authSection.style.display = 'flex';
+                document.getElementById('authEmail').focus();
+            } else {
+                authSection.style.display = 'none';
+            }
+        }
+
         async function handleAuth(isRegister) {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value.trim();
@@ -359,11 +403,14 @@
 
         window.toggleRecommend = async function(bizId) {
             if (!currentUserId) {
-                alert("Apenas usuários identificados podem recomendar!");
+                alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
+                // Se o usuário clicar no botão de recomendar do card sem estar logado, abre automaticamente a tela de login lá em cima pra ele
+                const authSection = document.getElementById('authSection');
+                authSection.style.display = 'flex';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
             
-            // Retorno visual otimista imediato
             globalRecommendations[bizId] = globalRecommendations[bizId] || [];
             if(globalRecommendations[bizId].includes(currentUserId)) {
                 globalRecommendations[bizId] = globalRecommendations[bizId].filter(id => id !== currentUserId);
@@ -372,7 +419,6 @@
             }
             renderBusinesses();
 
-            // Grava a alteração de forma definitiva no Sheets
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
