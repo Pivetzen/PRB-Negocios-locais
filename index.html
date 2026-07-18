@@ -257,8 +257,8 @@
     </main>
 
     <script>
-        // CONFIGURAÇÕES GERAIS - Certifique-se de preencher a URL do seu Apps Script implantado
-        const SCRIPT_URL = 'SUA_URL_DO_APPS_SCRIPT_AQUI'; 
+        // CONFIGURAÇÕES GERAIS - URL Atualizada do Apps Script
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
@@ -336,7 +336,7 @@
                     alert(result.message || 'Falha na operação.');
                 }
             } catch(e) {
-                alert('Erro ao se conectar ao servidor da planilha. Verifique a URL do script e as permissões.');
+                alert('Erro ao se conectar ao servidor da planilha. Certifique-se de que a nova versão do código no Apps Script foi implantada corretamente com acesso público.');
             }
         }
 
@@ -402,7 +402,6 @@
             const select = document.getElementById('categoryFilter');
             if(!select) return;
             
-            // Limpa opções antigas exceto a primeira
             select.innerHTML = '<option value="todos">Todos os ramos/categorias</option>';
             
             const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
