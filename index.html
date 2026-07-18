@@ -152,7 +152,7 @@
 
         .card-img {
             width: 100%;
-            height: 160px;
+            height: 180px;
             object-fit: cover;
             background-color: #e2e8f0;
         }
@@ -213,7 +213,6 @@
         .btn-recommend { background-color: #e2e8f0; color: var(--text); }
         .btn-recommend.active { background-color: var(--success); color: white; }
         .btn-primary { background-color: var(--primary); color: white; }
-        .btn-danger { background-color: var(--danger); color: white; }
 
         .btn-trigger-auth {
             background-color: var(--primary);
@@ -271,7 +270,10 @@
     <script>
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
-        const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+        
+        // URLs específicas para puxar os dados de cada aba de forma otimizada
+        const BIZ_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Negocios&tqx=out:json`;
+        const REC_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
 
         let businesses = [];
         let globalRecommendations = {}; 
@@ -359,7 +361,6 @@
             handleAuth(isRegisterMode);
         };
 
-        // Nova função interna para ler a lista de usuários cadastrados de forma segura
         async function checkUserCredentials(email, password) {
             try {
                 const userSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Usuarios&tqx=out:json`;
@@ -369,7 +370,6 @@
                 const json = JSON.parse(jsonString);
                 const rows = json.table.rows;
                 
-                // Varre a planilha procurando e-mail (Coluna B -> index 1) e senha (Coluna C -> index 2)
                 for (let row of rows) {
                     const rowEmail = row.c[1] ? String(row.c[1].v).trim().toLowerCase() : '';
                     const rowPassword = row.c[2] ? String(row.c[2].v).trim() : '';
@@ -379,9 +379,7 @@
                         return { success: true, id: rowId };
                     }
                 }
-            } catch (e) {
-                console.error("Erro ao validar credenciais diretamente:", e);
-            }
+            } catch (e) { console.error(e); }
             return { success: false };
         }
 
@@ -398,14 +396,12 @@
                 if(!aptId) { alert('Por favor, informe seu apartamento.'); return; }
                 if(whatsapp.length < 14) { alert('Por favor, insira um WhatsApp válido no formato (85) 99999-9999.'); return; }
             } else {
-                // MODO LOGIN: Validando se as informações existem na planilha antes de avançar
                 const validation = await checkUserCredentials(email, password);
                 if (!validation.success) {
                     alert("E-mail ou senha incorretos. Verifique os dados ou crie uma nova conta.");
                     return;
                 }
                 
-                // Se deu certo, salva o ID real encontrado e loga
                 currentUserId = validation.id;
                 currentUserEmail = email;
                 localStorage.setItem('appUserId', currentUserId);
@@ -417,7 +413,6 @@
                 return;
             }
             
-            // Fluxo contínuo apenas se for cadastro (enviando via no-cors)
             const formData = new URLSearchParams();
             formData.append('action', 'auth');
             formData.append('email', email);
@@ -443,9 +438,7 @@
                 updateUserBar();
                 await fetchRecommendations();
                 renderBusinesses();
-            } catch(e) {
-                alert('Erro inesperado ao conectar.');
-            }
+            } catch(e) { alert('Erro inesperado ao conectar.'); }
         }
 
         function logout() {
@@ -459,8 +452,7 @@
 
         async function fetchRecommendations() {
             try {
-                const recSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
-                const response = await fetch(recSheetUrl);
+                const response = await fetch(REC_SHEET_URL);
                 const text = await response.text();
                 const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
                 const json = JSON.parse(jsonString);
@@ -468,44 +460,44 @@
                 
                 globalRecommendations = {};
                 rows.forEach(row => {
-                    const uId = row.c[0] ? String(row.c[0].v) : '';
-                    const bId = row.c[1] ? String(row.c[1].v) : '';
-                    if(bId && uId) {
-                        globalRecommendations[bId] = globalRecommendations[bId] || [];
-                        if(!globalRecommendations[bId].includes(uId)) {
-                            globalRecommendations[bId].push(uId);
+                    const uId = row.c[0] ? String(row.c[0].v).trim() : '';
+                    const negId = row.c[1] ? String(row.c[1].v).trim() : '';
+                    if(negId && uId) {
+                        globalRecommendations[negId] = globalRecommendations[negId] || [];
+                        if(!globalRecommendations[negId].includes(uId)) {
+                            globalRecommendations[negId].push(uId);
                         }
                     }
                 });
                 renderBusinesses();
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error("Erro ao carregar recomendações:", e); }
         }
 
         async function fetchBusinesses() {
             try {
-                const response = await fetch(SHEET_URL);
+                const response = await fetch(BIZ_SHEET_URL);
                 const text = await response.text();
                 const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
                 const json = JSON.parse(jsonString);
                 const rows = json.table.rows;
                 
-                businesses = rows.map((row, index) => {
-                    if(row.c[0] && row.c[0].v === "Nome") return null; 
+                businesses = rows.map((row) => {
+                    if(row.c[0] && row.c[0].v === "NEG_ID") return null; 
                     return {
-                        id: `biz-${index}`,
-                        Nome: row.c[0] ? row.c[0].v : '',
-                        Categoria: row.c[1] ? row.c[1].v : '',
-                        Telefone: row.c[2] ? row.c[2].v : '',
-                        Endereco: row.c[3] ? row.c[3].v : '',
-                        Descricao: row.c[4] ? row.c[4].v : '',
-                        Imagem: row.c[5] ? row.c[5].v : '',
-                        Local: row.c[6] ? row.c[6].v : ''
+                        id: row.c[0] ? String(row.c[0].v).trim() : '', // Usando NEG_ID real da planilha
+                        Nome: row.c[1] ? row.c[1].v : '',
+                        Categoria: row.c[2] ? row.c[2].v : '',
+                        Telefone: row.c[3] ? row.c[3].v : '',
+                        Endereco: row.c[4] ? row.c[4].v : '',
+                        Descricao: row.c[5] ? row.c[5].v : '',
+                        Imagem: row.c[6] ? row.c[6].v : '', // Mapeamento da coluna de imagem
+                        Local: row.c[7] ? row.c[7].v : ''
                     };
                 }).filter(Boolean);
 
                 populateFilters();
                 renderBusinesses();
-            } catch (error) { console.error(error); }
+            } catch (error) { console.error("Erro na carga de negócios:", error); }
         }
 
         function populateFilters() {
@@ -522,7 +514,7 @@
             document.getElementById('searchInput').addEventListener('input', () => renderBusinesses());
         }
 
-        window.toggleRecommend = async function(bizId) {
+        window.toggleRecommend = async function(negId) {
             if (!currentUserId) {
                 alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
                 window.toggleAuthForm();
@@ -530,17 +522,17 @@
                 return;
             }
             
-            globalRecommendations[bizId] = globalRecommendations[bizId] || [];
-            if(globalRecommendations[bizId].includes(currentUserId)) {
-                globalRecommendations[bizId] = globalRecommendations[bizId].filter(id => id !== currentUserId);
+            globalRecommendations[negId] = globalRecommendations[negId] || [];
+            if(globalRecommendations[negId].includes(currentUserId)) {
+                globalRecommendations[negId] = globalRecommendations[negId].filter(id => id !== currentUserId);
             } else {
-                globalRecommendations[bizId].push(currentUserId);
+                globalRecommendations[negId].push(currentUserId);
             }
             renderBusinesses();
 
             const formData = new URLSearchParams();
             formData.append('action', 'toggleRecommend');
-            formData.append('bizId', bizId);
+            formData.append('negId', negId); // Enviando o NEG_ID real para salvar na tabela relacional
             formData.append('userId', currentUserId);
 
             try {
@@ -576,7 +568,8 @@
                 const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
                 const whatsappUrl = `https://wa.me/${cleanPhone}`;
                 
-                const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.8rem">Sem foto cadastrada</div>`;
+                // Exibindo imagem vinda da planilha ou placeholder padrão elegante caso esteja vazio
+                const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.85rem;background:#e2e8f0;">Sem foto cadastrada</div>`;
                 const buildingTag = biz.Local && biz.Local.toUpperCase() === "DO PRÉDIO" ? `<span class="tag-building">DO PRÉDIO</span>` : '';
 
                 const card = document.createElement('div');
