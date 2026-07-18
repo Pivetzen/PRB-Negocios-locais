@@ -197,7 +197,16 @@
             text-decoration: none;
         }
 
-        .btn-mini { padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; margin-left: 8px;}
+        /* Correção aplicada aqui para o botão de sair não esticar */
+        .btn-mini { 
+            flex: none; 
+            width: auto; 
+            padding: 6px 16px; 
+            font-size: 0.85rem; 
+            border-radius: 6px; 
+            margin-left: 8px;
+        }
+        
         .btn-contact { background-color: #25d366; color: white; }
         .btn-recommend { background-color: #e2e8f0; color: var(--text); }
         .btn-recommend.active { background-color: var(--success); color: white; }
@@ -303,7 +312,6 @@
             }
         }
 
-        // Sistema Simulado/Seguro de identificação local pós-envio
         async function handleAuth(isRegister) {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value.trim();
@@ -318,15 +326,12 @@
             formData.append('isRegister', isRegister);
 
             try {
-                // Utilizando modo NO-CORS para evitar qualquer bloqueio do navegador externo
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     body: formData
                 });
                 
-                // Como o no-cors impede ler a resposta direta, geramos um ID único consistente baseado no e-mail
-                // Isso garante o funcionamento do app independente de bloqueios restritivos de segurança do Google!
                 currentUserId = btoa(email).replace(/[^a-zA-Z0-9]/g, "").substring(0, 10);
                 currentUserEmail = email;
                 
@@ -355,7 +360,6 @@
         }
 
         async function fetchRecommendations() {
-            // Buscamos via JSONP / Public-Fetch da planilha para ignorar o POST bloqueado
             try {
                 const recSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
                 const response = await fetch(recSheetUrl);
@@ -452,7 +456,6 @@
                     mode: 'no-cors',
                     body: formData
                 });
-                // Aguarda um breve instante para a planilha processar e atualiza visualmente
                 setTimeout(fetchRecommendations, 1000);
             } catch(e) { console.error(e); }
         };
