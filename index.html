@@ -257,7 +257,7 @@
     </main>
 
     <script>
-        // CONFIGURAÇÕES GERAIS - URL Atualizada do Apps Script
+        // CONFIGURAÇÕES GERAIS
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -273,13 +273,11 @@
             await fetchBusinesses();
         }
 
-        // Altera o visual baseado no estado de login
         function updateUserBar() {
             const userStatus = document.getElementById('userStatus');
             const authSection = document.getElementById('authSection');
             
             if (currentUserId && currentUserEmail) {
-                // Modo Logado: Mostra a barra estruturada clean
                 userStatus.innerHTML = `
                     <div class="user-bar">
                         <div>Logado como: <b>${currentUserEmail}</b></div> 
@@ -287,7 +285,6 @@
                     </div>`;
                 authSection.style.display = 'none';
             } else {
-                // Modo Visitante: Mostra APENAS o botão limpo de chamada para ação
                 userStatus.innerHTML = `
                     <button onclick="toggleAuthForm()" class="btn btn-trigger-auth">
                         Faça login para recomendar algum serviço
@@ -296,7 +293,6 @@
             }
         }
 
-        // Alterna a abertura do painel de login
         window.toggleAuthForm = function() {
             const authSection = document.getElementById('authSection');
             if (authSection.style.display === 'none' || authSection.style.display === '') {
@@ -314,14 +310,17 @@
             if(!email || !password) { alert('Por favor, preencha o e-mail e a senha.'); return; }
             if(!email.includes('@')) { alert('Por favor, insira um e-mail válido.'); return; }
             
+            // Formatando em URLSearchParams para evitar erros de CORS e parsing no Google Script
+            const formData = new URLSearchParams();
+            formData.append('action', 'auth');
+            formData.append('email', email);
+            formData.append('password', password);
+            formData.append('isRegister', isRegister);
+
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                        'Content-Type': 'text/plain'
-                    },
-                    body: JSON.stringify({ action: 'auth', email: email, password: password, isRegister: isRegister })
+                    body: formData
                 });
                 const result = await response.json();
                 
@@ -336,7 +335,7 @@
                     alert(result.message || 'Falha na operação.');
                 }
             } catch(e) {
-                alert('Erro ao se conectar ao servidor da planilha. Certifique-se de que a nova versão do código no Apps Script foi implantada corretamente com acesso público.');
+                alert('Erro ao se conectar ao servidor da planilha. Verifique se salvou a nova versão do script no Google Sheets.');
             }
         }
 
@@ -353,14 +352,13 @@
         }
 
         async function fetchRecommendations() {
+            const formData = new URLSearchParams();
+            formData.append('action', 'getRecommendations');
+
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                        'Content-Type': 'text/plain'
-                    },
-                    body: JSON.stringify({ action: 'getRecommendations' })
+                    body: formData
                 });
                 const result = await response.json();
                 if(result.success) {
@@ -401,7 +399,6 @@
         function populateFilters() {
             const select = document.getElementById('categoryFilter');
             if(!select) return;
-            
             select.innerHTML = '<option value="todos">Todos os ramos/categorias</option>';
             
             const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
@@ -430,14 +427,15 @@
             }
             renderBusinesses();
 
+            const formData = new URLSearchParams();
+            formData.append('action', 'toggleRecommend');
+            formData.append('bizId', bizId);
+            formData.append('userId', currentUserId);
+
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                        'Content-Type': 'text/plain'
-                    },
-                    body: JSON.stringify({ action: 'toggleRecommend', bizId: bizId, userId: currentUserId })
+                    body: formData
                 });
                 await fetchRecommendations(); 
                 renderBusinesses();
