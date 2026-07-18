@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guia de Negócios Locais</title>
     <style>
-        /* Estilos Globais e Responsividade */
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -14,6 +13,9 @@
             --text: #1e293b;
             --text-light: #64748b;
             --success: #16a34a;
+            --danger: #ef4444;
+            --tag-bg: #fef3c7;
+            --tag-text: #d97706;
         }
 
         * {
@@ -45,7 +47,52 @@
             margin-bottom: 8px;
         }
 
-        /* Área de Filtros e Busca */
+        /* Barra de Status do Usuário */
+        .user-bar {
+            width: 100%;
+            max-width: 800px;
+            background: var(--card-bg);
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 0.9rem;
+        }
+
+        /* Painel de Login e Cadastro */
+        .auth-forms {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #edf2f7;
+        }
+
+        .auth-forms input {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        .auth-forms input:focus { border-color: var(--primary); }
+        
+        .auth-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Filtros e Busca */
         .search-container {
             width: 100%;
             max-width: 800px;
@@ -55,11 +102,7 @@
             margin-bottom: 24px;
         }
 
-        @media (min-width: 640px) {
-            .search-container {
-                flex-direction: row;
-            }
-        }
+        @media (min-width: 640px) { .search-container { flex-direction: row; } }
 
         .search-input, .filter-select {
             width: 100%;
@@ -68,16 +111,12 @@
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             background-color: var(--card-bg);
-            color: var(--text);
             outline: none;
-            transition: border-color 0.2s;
         }
 
-        .search-input:focus, .filter-select:focus {
-            border-color: var(--primary);
-        }
+        .search-input:focus, .filter-select:focus { border-color: var(--primary); }
 
-        /* Lista de Cards */
+        /* Grid de Cards */
         .business-list {
             width: 100%;
             max-width: 800px;
@@ -86,22 +125,34 @@
             gap: 16px;
         }
 
-        @media (min-width: 640px) {
-            .business-list {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
+        @media (min-width: 640px) { .business-list { grid-template-columns: 1fr 1fr; } }
 
-        /* Estilo do Card */
+        /* Card Visual */
         .card {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             border: 1px solid #edf2f7;
+        }
+
+        .card-img {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            background-color: #e2e8f0;
+        }
+
+        .card-content { padding: 20px; flex-grow: 1; }
+
+        .card-header-tags {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
         }
 
         .card-category {
@@ -109,38 +160,24 @@
             text-transform: uppercase;
             font-weight: 700;
             color: var(--primary);
-            letter-spacing: 0.05em;
-            margin-bottom: 4px;
         }
 
-        .card-title {
-            font-size: 1.25rem;
+        .tag-building {
+            background-color: var(--tag-bg);
+            color: var(--tag-text);
+            font-size: 0.7rem;
             font-weight: 700;
-            margin-bottom: 8px;
+            padding: 2px 8px;
+            border-radius: 4px;
         }
 
-        .card-description {
-            font-size: 0.9rem;
-            color: var(--text-light);
-            margin-bottom: 12px;
-            line-height: 1.4;
-        }
-
-        .card-info {
-            font-size: 0.85rem;
-            margin-bottom: 16px;
-        }
-
-        .card-info p {
-            margin-bottom: 4px;
-        }
+        .card-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; }
+        .card-description { font-size: 0.9rem; color: var(--text-light); margin-bottom: 12px; line-height: 1.4; }
+        .card-info { font-size: 0.85rem; margin-bottom: 16px; }
+        .card-info p { margin-bottom: 4px; }
 
         /* Botões */
-        .card-actions {
-            display: flex;
-            gap: 10px;
-        }
-
+        .card-actions { display: flex; gap: 10px; padding: 0 20px 20px 20px; }
         .btn {
             flex: 1;
             padding: 10px;
@@ -151,36 +188,16 @@
             cursor: pointer;
             text-align: center;
             text-decoration: none;
-            transition: background-color 0.2s, color 0.2s;
         }
 
-        .btn-contact {
-            background-color: #25d366;
-            color: white;
-        }
+        .btn-mini { padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; margin-left: 8px;}
+        .btn-contact { background-color: #25d366; color: white; }
+        .btn-recommend { background-color: #e2e8f0; color: var(--text); }
+        .btn-recommend.active { background-color: var(--success); color: white; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
 
-        .btn-contact:hover {
-            background-color: #128c7e;
-        }
-
-        .btn-recommend {
-            background-color: #e2e8f0;
-            color: var(--text);
-        }
-
-        .btn-recommend.active {
-            background-color: var(--success);
-            color: white;
-        }
-
-        /* Estados de carregamento e erro */
-        .status-message {
-            text-align: center;
-            padding: 40px;
-            font-size: 1.1rem;
-            color: var(--text-light);
-            grid-column: 1 / -1;
-        }
+        .status-message { text-align: center; padding: 40px; font-size: 1.1rem; color: var(--text-light); grid-column: 1 / -1; }
     </style>
 </head>
 <body>
@@ -190,6 +207,20 @@
         <p>Encontre e recomende os melhores serviços locais</p>
     </header>
 
+    <!-- Barra Superior de Controle de Usuário -->
+    <div id="userStatus" class="user-bar">Carregando dados de acesso...</div>
+    
+    <!-- Formulário de Login/Cadastro -->
+    <div id="authSection" class="auth-forms">
+        <input type="email" id="authEmail" placeholder="Seu e-mail">
+        <input type="password" id="authPassword" placeholder="Sua senha">
+        <div class="auth-actions">
+            <button id="btnLogin" class="btn btn-primary">Entrar</button>
+            <button id="btnRegister" class="btn btn-recommend">Cadastrar Nova Conta</button>
+        </div>
+    </div>
+
+    <!-- Filtros de Busca -->
     <div class="search-container">
         <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nome do negócio...">
         <select id="categoryFilter" class="filter-select">
@@ -198,91 +229,163 @@
     </div>
 
     <main id="businessList" class="business-list">
-        <div class="status-message">Carregando negócios parceiros...</div>
+        <div class="status-message">Carregando catálogo de parceiros...</div>
     </main>
 
     <script>
+        // CONFIGURAÇÕES GERAIS
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
         let businesses = [];
-        let recommendedList = JSON.parse(localStorage.getItem('localRecommendations')) || [];
+        let globalRecommendations = {}; 
+        let currentUserId = localStorage.getItem('appUserId') || null;
+        let currentUserEmail = localStorage.getItem('appUserEmail') || null;
 
-        // Buscar dados da Planilha
+        async function init() {
+            updateUserBar();
+            await fetchRecommendations();
+            await fetchBusinesses();
+        }
+
+        function updateUserBar() {
+            const userStatus = document.getElementById('userStatus');
+            const authSection = document.getElementById('authSection');
+            
+            if (currentUserId && currentUserEmail) {
+                userStatus.innerHTML = `<div>Logado como: <b>${currentUserEmail}</b></div> <button onclick="logout()" class="btn btn-mini btn-danger">Sair</button>`;
+                authSection.style.display = 'none';
+            } else {
+                userStatus.innerHTML = `Navegando como Visitante. Identifique-se para poder recomendar.`;
+                authSection.style.display = 'flex';
+            }
+        }
+
+        // Função genérica para disparar autenticação (Login ou Cadastro)
+        async function handleAuth(isRegister) {
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value.trim();
+            
+            if(!email || !password) { alert('Por favor, preencha o e-mail e a senha.'); return; }
+            if(!email.includes('@')) { alert('Por favor, insira um e-mail válido.'); return; }
+            
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'auth', email: email, password: password, isRegister: isRegister })
+                });
+                const result = await response.json();
+                
+                if(result.success) {
+                    currentUserId = result.userId;
+                    currentUserEmail = result.email;
+                    localStorage.setItem('appUserId', currentUserId);
+                    localStorage.setItem('appUserEmail', currentUserEmail);
+                    updateUserBar();
+                    renderBusinesses();
+                } else {
+                    alert(result.message || 'Falha na operação.');
+                }
+            } catch(e) {
+                alert('Erro ao se conectar ao servidor da planilha.');
+            }
+        }
+
+        document.getElementById('btnLogin').onclick = () => handleAuth(false);
+        document.getElementById('btnRegister').onclick = () => handleAuth(true);
+
+        function logout() {
+            localStorage.removeItem('appUserId');
+            localStorage.removeItem('appUserEmail');
+            currentUserId = null;
+            currentUserEmail = null;
+            updateUserBar();
+            renderBusinesses();
+        }
+
+        async function fetchRecommendations() {
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'getRecommendations' })
+                });
+                const result = await response.json();
+                if(result.success) {
+                    globalRecommendations = result.data || {};
+                }
+            } catch(e) { console.error("Erro ao carregar recomendações:", e); }
+        }
+
         async function fetchBusinesses() {
             try {
                 const response = await fetch(SHEET_URL);
                 const text = await response.text();
-                
                 const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
                 const json = JSON.parse(jsonString);
-                
                 const rows = json.table.rows;
                 
-                // Mapeamento alternativo inteligente para evitar falhas de cabeçalho
                 businesses = rows.map((row, index) => {
-                    // Ignora a linha de cabeçalho caso ela venha junto nos dados ativos
                     if(row.c[0] && row.c[0].v === "Nome") return null; 
-
                     return {
                         id: `biz-${index}`,
                         Nome: row.c[0] ? row.c[0].v : '',
                         Categoria: row.c[1] ? row.c[1].v : '',
                         Telefone: row.c[2] ? row.c[2].v : '',
                         Endereco: row.c[3] ? row.c[3].v : '',
-                        Descricao: row.c[4] ? row.c[4].v : ''
+                        Descricao: row.c[4] ? row.c[4].v : '',
+                        Imagem: row.c[5] ? row.c[5].v : '',
+                        Local: row.c[6] ? row.c[6].v : ''
                     };
                 }).filter(Boolean);
 
                 populateFilters();
-                setupSearch();
                 renderBusinesses();
-
             } catch (error) {
-                console.error("Erro ao carregar dados:", error);
-                document.getElementById('businessList').innerHTML = `
-                    <div class="status-message" style="color: #ef4444; font-weight: bold;">
-                        Erro ao carregar os negócios.<br><br>
-                        👉 Certifique-se de clicar em "Compartilhar" na Planilha e mudar o acesso de "Restrito" para "Qualquer pessoa com o link".
-                    </div>`;
+                console.error("Erro na carga de negócios:", error);
             }
         }
 
-        // Preencher o filtro de ramos dinamicamente
         function populateFilters() {
             const select = document.getElementById('categoryFilter');
             const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
-            
             categories.forEach(cat => {
                 const opt = document.createElement('option');
-                opt.value = cat;
-                opt.innerText = cat;
-                select.appendChild(opt);
+                opt.value = cat; opt.innerText = cat; select.appendChild(opt);
             });
-
             select.addEventListener('change', () => renderBusinesses());
+            document.getElementById('searchInput').addEventListener('input', () => renderBusinesses());
         }
 
-        // Configurar a barra de pesquisa por digitação
-        function setupSearch() {
-            const searchInput = document.getElementById('searchInput');
-            searchInput.addEventListener('input', () => renderBusinesses());
-        }
-
-        // Alternar recomendação (Salva localmente no dispositivo)
-        function toggleRecommend(id) {
-            if (recommendedList.includes(id)) {
-                recommendedList = recommendedList.filter(item => item !== id);
-            } else {
-                recommendedList.push(id);
+        window.toggleRecommend = async function(bizId) {
+            if (!currentUserId) {
+                alert("Apenas usuários identificados podem recomendar!");
+                return;
             }
-            localStorage.setItem('localRecommendations', JSON.stringify(recommendedList));
+            
+            // Retorno visual otimista imediato
+            globalRecommendations[bizId] = globalRecommendations[bizId] || [];
+            if(globalRecommendations[bizId].includes(currentUserId)) {
+                globalRecommendations[bizId] = globalRecommendations[bizId].filter(id => id !== currentUserId);
+            } else {
+                globalRecommendations[bizId].push(currentUserId);
+            }
             renderBusinesses();
-        }
 
-        // Renderizar os cards na tela filtrados
+            // Grava a alteração de forma definitiva no Sheets
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'toggleRecommend', bizId: bizId, userId: currentUserId })
+                });
+                await fetchRecommendations(); 
+                renderBusinesses();
+            } catch(e) { console.error(e); }
+        };
+
         function renderBusinesses() {
             const container = document.getElementById('businessList');
+            if(!container) return;
             container.innerHTML = '';
 
             const selectedCategory = document.getElementById('categoryFilter').value;
@@ -300,17 +403,27 @@
             }
 
             filtered.forEach(biz => {
-                const isRecommended = recommendedList.includes(biz.id);
+                const recs = globalRecommendations[biz.id] || [];
+                const totalRecommendations = recs.length;
+                const isRecommendedByMe = currentUserId ? recs.includes(currentUserId) : false;
+                
                 const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
                 const whatsappUrl = `https://wa.me/${cleanPhone}`;
+                
+                const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.8rem">Sem foto cadastrada</div>`;
+                const buildingTag = biz.Local && biz.Local.toUpperCase() === "DO PRÉDIO" ? `<span class="tag-building">DO PRÉDIO</span>` : '';
 
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <div>
-                        <div class="card-category">${biz.Categoria || 'Geral'}</div>
+                    ${imgTag}
+                    <div class="card-content">
+                        <div class="card-header-tags">
+                            <div class="card-category">${biz.Categoria || 'Geral'}</div>
+                            ${buildingTag}
+                        </div>
                         <div class="card-title">${biz.Nome || 'Sem Nome'}</div>
-                        <div class="card-description">${biz.Descricao || 'Sem descrição cadastrada.'}</div>
+                        <div class="card-description">${biz.Descricao || 'Sem descrição.'}</div>
                         <div class="card-info">
                             <p><strong>📍 Endereço:</strong> ${biz.Endereco || 'Não informado'}</p>
                             <p><strong>📞 Contato:</strong> ${biz.Telefone || 'Não informado'}</p>
@@ -318,8 +431,8 @@
                     </div>
                     <div class="card-actions">
                         ${cleanPhone ? `<a href="${whatsappUrl}" target="_blank" class="btn btn-contact">WhatsApp</a>` : ''}
-                        <button onclick="toggleRecommend('${biz.id}')" class="btn btn-recommend ${isRecommended ? 'active' : ''}">
-                            ${isRecommended ? '👍 Recomendado!' : '👍 Recomendo'}
+                        <button onclick="toggleRecommend('${biz.id}')" class="btn btn-recommend ${isRecommendedByMe ? 'active' : ''}">
+                            👍 Recomendo (${totalRecommendations})
                         </button>
                     </div>
                 `;
@@ -327,7 +440,7 @@
             });
         }
 
-        window.onload = fetchBusinesses;
+        window.onload = init;
     </script>
 </body>
 </html>
