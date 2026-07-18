@@ -47,7 +47,6 @@
             margin-bottom: 8px;
         }
 
-        /* Área de Autenticação Centralizada e Limpa */
         .auth-container {
             width: 100%;
             max-width: 800px;
@@ -71,7 +70,7 @@
         }
 
         .auth-forms {
-            display: none; /* Escondido por padrão */
+            display: none;
             flex-direction: column;
             gap: 10px;
             background: var(--card-bg);
@@ -94,12 +93,19 @@
 
         .auth-forms input:focus { border-color: var(--primary); }
         
-        .auth-actions {
-            display: flex;
+        .register-fields {
+            display: none; /* Escondido por padrão, aparece ao clicar em Cadastrar */
+            flex-direction: column;
             gap: 10px;
         }
 
-        /* Filtros e Busca */
+        .auth-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
         .search-container {
             width: 100%;
             max-width: 800px;
@@ -123,7 +129,6 @@
 
         .search-input:focus, .filter-select:focus { border-color: var(--primary); }
 
-        /* Grid de Cards */
         .business-list {
             width: 100%;
             max-width: 800px;
@@ -134,7 +139,6 @@
 
         @media (min-width: 640px) { .business-list { grid-template-columns: 1fr 1fr; } }
 
-        /* Card Visual */
         .card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -183,7 +187,6 @@
         .card-info { font-size: 0.85rem; margin-bottom: 16px; }
         .card-info p { margin-bottom: 4px; }
 
-        /* Botões */
         .card-actions { display: flex; gap: 10px; padding: 0 20px 20px 20px; }
         .btn {
             flex: 1;
@@ -197,7 +200,6 @@
             text-decoration: none;
         }
 
-        /* Correção aplicada aqui para o botão de sair não esticar */
         .btn-mini { 
             flex: none; 
             width: auto; 
@@ -236,24 +238,27 @@
         <p>Encontre e recomende os melhores serviços locais</p>
     </header>
 
-    <!-- Seção de Acesso Dinâmica -->
     <div class="auth-container">
-        <div id="userStatus" style="width: 100%; display: flex; justify-content: center;">
-            <!-- Renderizado dinamicamente pelo JavaScript -->
-        </div>
+        <div id="userStatus" style="width: 100%; display: flex; justify-content: center;"></div>
         
-        <!-- Formulário Oculto de Login/Cadastro -->
+        <!-- Formulário Dinâmico -->
         <div id="authSection" class="auth-forms">
             <input type="email" id="authEmail" placeholder="Seu e-mail">
             <input type="password" id="authPassword" placeholder="Sua senha">
+            
+            <!-- Novos Campos Exclusivos de Cadastro -->
+            <div id="registerFields" class="register-fields">
+                <input type="text" id="authApt" placeholder="Número do Apartamento (Ex: 402B)">
+                <input type="text" id="authWhatsapp" placeholder="WhatsApp (85) 99999-9999" maxlength="15">
+            </div>
+
             <div class="auth-actions">
-                <button id="btnLogin" class="btn btn-primary">Entrar</button>
-                <button id="btnRegister" class="btn btn-recommend">Cadastrar Nova Conta</button>
+                <button id="btnMainAction" class="btn btn-primary">Entrar</button>
+                <button id="btnSwitchMode" class="btn btn-recommend">Quero me Cadastrar</button>
             </div>
         </div>
     </div>
 
-    <!-- Filtros de Busca -->
     <div class="search-container">
         <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nome do negócio...">
         <select id="categoryFilter" class="filter-select">
@@ -266,7 +271,6 @@
     </main>
 
     <script>
-        // CONFIGURAÇÕES GERAIS
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -275,11 +279,31 @@
         let globalRecommendations = {}; 
         let currentUserId = localStorage.getItem('appUserId') || null;
         let currentUserEmail = localStorage.getItem('appUserEmail') || null;
+        let isRegisterMode = false; // Controla se o form está em modo Login ou Cadastro
 
         async function init() {
             updateUserBar();
+            setupMask();
             await fetchRecommendations();
             await fetchBusinesses();
+        }
+
+        // Máscara Automática de WhatsApp: (XX) XXXXX-XXXX
+        function setupMask() {
+            const input = document.getElementById('authWhatsapp');
+            input.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length > 11) value = value.slice(0, 11);
+                
+                if (value.length > 6) {
+                    value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+                } else if (value.length > 2) {
+                    value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                } else if (value.length > 0) {
+                    value = `(${value}`;
+                }
+                e.target.value = value;
+            });
         }
 
         function updateUserBar() {
@@ -306,24 +330,60 @@
             const authSection = document.getElementById('authSection');
             if (authSection.style.display === 'none' || authSection.style.display === '') {
                 authSection.style.display = 'flex';
+                setFormMode(false); // Inicia sempre no modo Login
                 document.getElementById('authEmail').focus();
             } else {
                 authSection.style.display = 'none';
             }
         }
 
+        // Alterna dinamicamente a interface entre Login e Cadastro
+        function setFormMode(registerMode) {
+            isRegisterMode = registerMode;
+            const regFields = document.getElementById('registerFields');
+            const btnMain = document.getElementById('btnMainAction');
+            const btnSwitch = document.getElementById('btnSwitchMode');
+
+            if (isRegisterMode) {
+                regFields.style.display = 'flex';
+                btnMain.innerText = 'Finalizar Cadastro';
+                btnSwitch.innerText = 'Já tenho conta (Fazer Login)';
+            } else {
+                regFields.style.display = 'none';
+                btnMain.innerText = 'Entrar';
+                btnSwitch.innerText = 'Quero me Cadastrar';
+            }
+        }
+
+        document.getElementById('btnSwitchMode').onclick = () => {
+            setFormMode(!isRegisterMode);
+        };
+
+        document.getElementById('btnMainAction').onclick = () => {
+            handleAuth(isRegisterMode);
+        };
+
         async function handleAuth(isRegister) {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value.trim();
+            const aptId = document.getElementById('authApt').value.trim();
+            const whatsapp = document.getElementById('authWhatsapp').value.trim();
             
             if(!email || !password) { alert('Por favor, preencha o e-mail e a senha.'); return; }
             if(!email.includes('@')) { alert('Por favor, insira um e-mail válido.'); return; }
+            
+            if(isRegister) {
+                if(!aptId) { alert('Por favor, informe seu apartamento.'); return; }
+                if(whatsapp.length < 14) { alert('Por favor, insira um WhatsApp válido no formato (85) 99999-9999.'); return; }
+            }
             
             const formData = new URLSearchParams();
             formData.append('action', 'auth');
             formData.append('email', email);
             formData.append('password', password);
             formData.append('isRegister', isRegister);
+            formData.append('aptId', aptId);
+            formData.append('whatsapp', whatsapp);
 
             try {
                 await fetch(SCRIPT_URL, {
@@ -338,7 +398,7 @@
                 localStorage.setItem('appUserId', currentUserId);
                 localStorage.setItem('appUserEmail', currentUserEmail);
                 
-                alert(isRegister ? "Conta criada / identificada com sucesso!" : "Login efetuado com sucesso!");
+                alert(isRegister ? "Conta criada e identificada com sucesso!" : "Login efetuado com sucesso!");
                 updateUserBar();
                 await fetchRecommendations();
                 renderBusinesses();
@@ -346,9 +406,6 @@
                 alert('Erro inesperado ao conectar.');
             }
         }
-
-        document.getElementById('btnLogin').onclick = () => handleAuth(false);
-        document.getElementById('btnRegister').onclick = () => handleAuth(true);
 
         function logout() {
             localStorage.removeItem('appUserId');
@@ -380,9 +437,7 @@
                     }
                 });
                 renderBusinesses();
-            } catch(e) { 
-                console.error("Erro ao carregar recomendações, usando cache local:", e); 
-            }
+            } catch(e) { console.error(e); }
         }
 
         async function fetchBusinesses() {
@@ -409,9 +464,7 @@
 
                 populateFilters();
                 renderBusinesses();
-            } catch (error) {
-                console.error("Erro na carga de negócios:", error);
-            }
+            } catch (error) { console.error(error); }
         }
 
         function populateFilters() {
@@ -431,8 +484,7 @@
         window.toggleRecommend = async function(bizId) {
             if (!currentUserId) {
                 alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
-                const authSection = document.getElementById('authSection');
-                authSection.style.display = 'flex';
+                window.toggleAuthForm();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
@@ -451,11 +503,7 @@
             formData.append('userId', currentUserId);
 
             try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: formData
-                });
+                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
                 setTimeout(fetchRecommendations, 1000);
             } catch(e) { console.error(e); }
         };
