@@ -94,7 +94,7 @@
         .auth-forms input:focus { border-color: var(--primary); }
         
         .register-fields {
-            display: none; /* Escondido por padrão, aparece ao clicar em Cadastrar */
+            display: none;
             flex-direction: column;
             gap: 10px;
         }
@@ -241,12 +241,10 @@
     <div class="auth-container">
         <div id="userStatus" style="width: 100%; display: flex; justify-content: center;"></div>
         
-        <!-- Formulário Dinâmico -->
         <div id="authSection" class="auth-forms">
             <input type="email" id="authEmail" placeholder="Seu e-mail">
             <input type="password" id="authPassword" placeholder="Sua senha">
             
-            <!-- Novos Campos Exclusivos de Cadastro -->
             <div id="registerFields" class="register-fields">
                 <input type="text" id="authApt" placeholder="Número do Apartamento (Ex: 402B)">
                 <input type="text" id="authWhatsapp" placeholder="WhatsApp (85) 99999-9999" maxlength="15">
@@ -279,7 +277,7 @@
         let globalRecommendations = {}; 
         let currentUserId = localStorage.getItem('appUserId') || null;
         let currentUserEmail = localStorage.getItem('appUserEmail') || null;
-        let isRegisterMode = false; // Controla se o form está em modo Login ou Cadastro
+        let isRegisterMode = false;
 
         async function init() {
             updateUserBar();
@@ -288,7 +286,6 @@
             await fetchBusinesses();
         }
 
-        // Máscara Automática de WhatsApp: (XX) XXXXX-XXXX
         function setupMask() {
             const input = document.getElementById('authWhatsapp');
             input.addEventListener('input', (e) => {
@@ -330,14 +327,13 @@
             const authSection = document.getElementById('authSection');
             if (authSection.style.display === 'none' || authSection.style.display === '') {
                 authSection.style.display = 'flex';
-                setFormMode(false); // Inicia sempre no modo Login
+                setFormMode(false);
                 document.getElementById('authEmail').focus();
             } else {
                 authSection.style.display = 'none';
             }
         }
 
-        // Alterna dinamicamente a interface entre Login e Cadastro
         function setFormMode(registerMode) {
             isRegisterMode = registerMode;
             const regFields = document.getElementById('registerFields');
@@ -363,6 +359,32 @@
             handleAuth(isRegisterMode);
         };
 
+        // Nova função interna para ler a lista de usuários cadastrados de forma segura
+        async function checkUserCredentials(email, password) {
+            try {
+                const userSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Usuarios&tqx=out:json`;
+                const response = await fetch(userSheetUrl);
+                const text = await response.text();
+                const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+                const json = JSON.parse(jsonString);
+                const rows = json.table.rows;
+                
+                // Varre a planilha procurando e-mail (Coluna B -> index 1) e senha (Coluna C -> index 2)
+                for (let row of rows) {
+                    const rowEmail = row.c[1] ? String(row.c[1].v).trim().toLowerCase() : '';
+                    const rowPassword = row.c[2] ? String(row.c[2].v).trim() : '';
+                    const rowId = row.c[0] ? String(row.c[0].v).trim() : '';
+                    
+                    if (rowEmail === email.toLowerCase() && rowPassword === password) {
+                        return { success: true, id: rowId };
+                    }
+                }
+            } catch (e) {
+                console.error("Erro ao validar credenciais diretamente:", e);
+            }
+            return { success: false };
+        }
+
         async function handleAuth(isRegister) {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value.trim();
@@ -375,8 +397,27 @@
             if(isRegister) {
                 if(!aptId) { alert('Por favor, informe seu apartamento.'); return; }
                 if(whatsapp.length < 14) { alert('Por favor, insira um WhatsApp válido no formato (85) 99999-9999.'); return; }
+            } else {
+                // MODO LOGIN: Validando se as informações existem na planilha antes de avançar
+                const validation = await checkUserCredentials(email, password);
+                if (!validation.success) {
+                    alert("E-mail ou senha incorretos. Verifique os dados ou crie uma nova conta.");
+                    return;
+                }
+                
+                // Se deu certo, salva o ID real encontrado e loga
+                currentUserId = validation.id;
+                currentUserEmail = email;
+                localStorage.setItem('appUserId', currentUserId);
+                localStorage.setItem('appUserEmail', currentUserEmail);
+                alert("Login efetuado com sucesso!");
+                updateUserBar();
+                await fetchRecommendations();
+                renderBusinesses();
+                return;
             }
             
+            // Fluxo contínuo apenas se for cadastro (enviando via no-cors)
             const formData = new URLSearchParams();
             formData.append('action', 'auth');
             formData.append('email', email);
@@ -398,7 +439,7 @@
                 localStorage.setItem('appUserId', currentUserId);
                 localStorage.setItem('appUserEmail', currentUserEmail);
                 
-                alert(isRegister ? "Conta criada e identificada com sucesso!" : "Login efetuado com sucesso!");
+                alert("Conta criada e identificada com sucesso!");
                 updateUserBar();
                 await fetchRecommendations();
                 renderBusinesses();
