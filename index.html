@@ -268,382 +268,390 @@
         <div class="status-message">Carregando catálogo de parceiros...</div>
     </main>
 
-    <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
-        const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
+    const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
+    
+    const BIZ_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Negocios&tqx=out:json`;
+    const REC_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
+
+    let businesses = [];
+    let globalRecommendations = {}; 
+    let currentUserId = localStorage.getItem('appUserId') || null;
+    let currentUserEmail = localStorage.getItem('appUserEmail') || null;
+    let isRegisterMode = false;
+
+    async function init() {
+        updateUserBar();
+        setupMask();
+        await fetchRecommendations();
+        await fetchBusinesses();
+    }
+
+    function formatPhone(phone) {
+        if (!phone) return 'Não informado';
+        let digits = String(phone).replace(/\D/g, '');
         
-        const BIZ_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Negocios&tqx=out:json`;
-        const REC_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
+        if (digits.length === 11) {
+            return `(${digits.slice(0, 2)})${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+        if (digits.length === 10) {
+            return `(${digits.slice(0, 2)})${digits.slice(2, 6)}-${digits.slice(6)}`;
+        }
+        
+        return phone;
+    }
 
-        let businesses = [];
-        let globalRecommendations = {}; 
-        let currentUserId = localStorage.getItem('appUserId') || null;
-        let currentUserEmail = localStorage.getItem('appUserEmail') || null;
-        let isRegisterMode = false;
+    function setupMask() {
+        const input = document.getElementById('authWhatsapp');
+        if (!input) return;
+        input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 11) value = value.slice(0, 11);
+            
+            if (value.length > 6) {
+                value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+            } else if (value.length > 2) {
+                value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+            } else if (value.length > 0) {
+                value = `(${value}`;
+            }
+            e.target.value = value;
+        });
+    }
 
-        async function init() {
+    function updateUserBar() {
+        const userStatus = document.getElementById('userStatus');
+        const authSection = document.getElementById('authSection');
+        
+        if (currentUserId && currentUserEmail) {
+            userStatus.innerHTML = `
+                <div class="user-bar">
+                    <div>Logado como: <b>${currentUserEmail}</b></div> 
+                    <button onclick="logout()" class="btn btn-mini btn-danger">Sair</button>
+                </div>`;
+            authSection.style.display = 'none';
+        } else {
+            userStatus.innerHTML = `
+                <button onclick="toggleAuthForm()" class="btn btn-trigger-auth">
+                    Faça login para recomendar algum serviço
+                </button>`;
+            authSection.style.display = 'none'; 
+        }
+    }
+
+    window.toggleAuthForm = function() {
+        const authSection = document.getElementById('authSection');
+        if (authSection.style.display === 'none' || authSection.style.display === '') {
+            authSection.style.display = 'flex';
+            setFormMode(false);
+            document.getElementById('authEmail').focus();
+        } else {
+            authSection.style.display = 'none';
+        }
+    }
+
+    function setFormMode(registerMode) {
+        isRegisterMode = registerMode;
+        const regFields = document.getElementById('registerFields');
+        const btnMain = document.getElementById('btnMainAction');
+        const btnSwitch = document.getElementById('btnSwitchMode');
+
+        if (isRegisterMode) {
+            regFields.style.display = 'flex';
+            btnMain.innerText = 'Finalizar Cadastro';
+            btnSwitch.innerText = 'Já tenho conta (Fazer Login)';
+        } else {
+            regFields.style.display = 'none';
+            btnMain.innerText = 'Entrar';
+            btnSwitch.innerText = 'Quero me Cadastrar';
+        }
+    }
+
+    document.getElementById('btnSwitchMode').onclick = () => {
+        setFormMode(!isRegisterMode);
+    };
+
+    document.getElementById('btnMainAction').onclick = () => {
+        handleAuth(isRegisterMode);
+    };
+
+    async function checkUserCredentials(email, password) {
+        try {
+            const userSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Usuarios&tqx=out:json`;
+            const response = await fetch(userSheetUrl);
+            const text = await response.text();
+            const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+            const json = JSON.parse(jsonString);
+            const rows = json.table.rows;
+            
+            for (let row of rows) {
+                const rowEmail = row.c[1] ? String(row.c[1].v).trim().toLowerCase() : '';
+                const rowPassword = row.c[2] ? String(row.c[2].v).trim() : '';
+                const rowId = row.c[0] ? String(row.c[0].v).trim() : '';
+                
+                if (rowEmail === email.toLowerCase() && rowPassword === password) {
+                    return { success: true, id: rowId };
+                }
+            }
+        } catch (e) { console.error(e); }
+        return { success: false };
+    }
+
+    async function handleAuth(isRegister) {
+        const email = document.getElementById('authEmail').value.trim();
+        const password = document.getElementById('authPassword').value.trim();
+        const aptId = document.getElementById('authApt').value.trim();
+        const whatsapp = document.getElementById('authWhatsapp').value.trim();
+        
+        if(!email || !password) { alert('Por favor, preencha o e-mail e a senha.'); return; }
+        if(!email.includes('@')) { alert('Por favor, insira um e-mail válido.'); return; }
+        
+        if(isRegister) {
+            if(!aptId) { alert('Por favor, informe seu apartamento.'); return; }
+            if(whatsapp.length < 14) { alert('Por favor, insira um WhatsApp válido no formato (85) 99999-9999.'); return; }
+        } else {
+            const validation = await checkUserCredentials(email, password);
+            if (!validation.success) {
+                alert("E-mail ou senha incorretos. Verifique os dados ou crie uma nova conta.");
+                return;
+            }
+            
+            currentUserId = validation.id;
+            currentUserEmail = email;
+            localStorage.setItem('appUserId', currentUserId);
+            localStorage.setItem('appUserEmail', currentUserEmail);
+            alert("Login efetuado com sucesso!");
             updateUserBar();
-            setupMask();
             await fetchRecommendations();
-            await fetchBusinesses();
+            renderBusinesses();
+            return;
         }
+        
+        const formData = new URLSearchParams();
+        formData.append('action', 'auth');
+        formData.append('email', email);
+        formData.append('password', password);
+        formData.append('isRegister', isRegister);
+        formData.append('aptId', aptId);
+        formData.append('whatsapp', whatsapp);
 
-        function setupMask() {
-            const input = document.getElementById('authWhatsapp');
-            input.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length > 11) value = value.slice(0, 11);
-                
-                if (value.length > 6) {
-                    value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
-                } else if (value.length > 2) {
-                    value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
-                } else if (value.length > 0) {
-                    value = `(${value}`;
-                }
-                e.target.value = value;
+        try {
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: formData
             });
-        }
-
-        function updateUserBar() {
-            const userStatus = document.getElementById('userStatus');
-            const authSection = document.getElementById('authSection');
             
-            if (currentUserId && currentUserEmail) {
-                userStatus.innerHTML = `
-                    <div class="user-bar">
-                        <div>Logado como: <b>${currentUserEmail}</b></div> 
-                        <button onclick="logout()" class="btn btn-mini btn-danger">Sair</button>
-                    </div>`;
-                authSection.style.display = 'none';
-            } else {
-                userStatus.innerHTML = `
-                    <button onclick="toggleAuthForm()" class="btn btn-trigger-auth">
-                        Faça login para recomendar algum serviço
-                    </button>`;
-                authSection.style.display = 'none'; 
-            }
-        }
-
-        window.toggleAuthForm = function() {
-            const authSection = document.getElementById('authSection');
-            if (authSection.style.display === 'none' || authSection.style.display === '') {
-                authSection.style.display = 'flex';
-                setFormMode(false);
-                document.getElementById('authEmail').focus();
-            } else {
-                authSection.style.display = 'none';
-            }
-        }
-
-        function setFormMode(registerMode) {
-            isRegisterMode = registerMode;
-            const regFields = document.getElementById('registerFields');
-            const btnMain = document.getElementById('btnMainAction');
-            const btnSwitch = document.getElementById('btnSwitchMode');
-
-            if (isRegisterMode) {
-                regFields.style.display = 'flex';
-                btnMain.innerText = 'Finalizar Cadastro';
-                btnSwitch.innerText = 'Já tenho conta (Fazer Login)';
-            } else {
-                regFields.style.display = 'none';
-                btnMain.innerText = 'Entrar';
-                btnSwitch.innerText = 'Quero me Cadastrar';
-            }
-        }
-
-        document.getElementById('btnSwitchMode').onclick = () => {
-            setFormMode(!isRegisterMode);
-        };
-
-        document.getElementById('btnMainAction').onclick = () => {
-            handleAuth(isRegisterMode);
-        };
-
-        async function checkUserCredentials(email, password) {
-            try {
-                const userSheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Usuarios&tqx=out:json`;
-                const response = await fetch(userSheetUrl);
-                const text = await response.text();
-                const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-                const json = JSON.parse(jsonString);
-                const rows = json.table.rows;
-                
-                for (let row of rows) {
-                    const rowEmail = row.c[1] ? String(row.c[1].v).trim().toLowerCase() : '';
-                    const rowPassword = row.c[2] ? String(row.c[2].v).trim() : '';
-                    const rowId = row.c[0] ? String(row.c[0].v).trim() : '';
-                    
-                    if (rowEmail === email.toLowerCase() && rowPassword === password) {
-                        return { success: true, id: rowId };
-                    }
-                }
-            } catch (e) { console.error(e); }
-            return { success: false };
-        }
-
-        async function handleAuth(isRegister) {
-            const email = document.getElementById('authEmail').value.trim();
-            const password = document.getElementById('authPassword').value.trim();
-            const aptId = document.getElementById('authApt').value.trim();
-            const whatsapp = document.getElementById('authWhatsapp').value.trim();
+            currentUserId = btoa(email).replace(/[^a-zA-Z0-9]/g, "").substring(0, 10);
+            currentUserEmail = email;
             
-            if(!email || !password) { alert('Por favor, preencha o e-mail e a senha.'); return; }
-            if(!email.includes('@')) { alert('Por favor, insira um e-mail válido.'); return; }
+            localStorage.setItem('appUserId', currentUserId);
+            localStorage.setItem('appUserEmail', currentUserEmail);
             
-            if(isRegister) {
-                if(!aptId) { alert('Por favor, informe seu apartamento.'); return; }
-                if(whatsapp.length < 14) { alert('Por favor, insira um WhatsApp válido no formato (85) 99999-9999.'); return; }
-            } else {
-                const validation = await checkUserCredentials(email, password);
-                if (!validation.success) {
-                    alert("E-mail ou senha incorretos. Verifique os dados ou crie uma nova conta.");
-                    return;
-                }
-                
-                currentUserId = validation.id;
-                currentUserEmail = email;
-                localStorage.setItem('appUserId', currentUserId);
-                localStorage.setItem('appUserEmail', currentUserEmail);
-                alert("Login efetuado com sucesso!");
-                updateUserBar();
-                await fetchRecommendations();
-                renderBusinesses();
-                return;
-            }
-            
-            const formData = new URLSearchParams();
-            formData.append('action', 'auth');
-            formData.append('email', email);
-            formData.append('password', password);
-            formData.append('isRegister', isRegister);
-            formData.append('aptId', aptId);
-            formData.append('whatsapp', whatsapp);
-
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: formData
-                });
-                
-                currentUserId = btoa(email).replace(/[^a-zA-Z0-9]/g, "").substring(0, 10);
-                currentUserEmail = email;
-                
-                localStorage.setItem('appUserId', currentUserId);
-                localStorage.setItem('appUserEmail', currentUserEmail);
-                
-                alert("Conta criada e identificada com sucesso!");
-                updateUserBar();
-                await fetchRecommendations();
-                renderBusinesses();
-            } catch(e) { alert('Erro inesperado ao conectar.'); }
-        }
-
-        function logout() {
-            localStorage.removeItem('appUserId');
-            localStorage.removeItem('appUserEmail');
-            currentUserId = null;
-            currentUserEmail = null;
+            alert("Conta criada e identificada com sucesso!");
             updateUserBar();
+            await fetchRecommendations();
             renderBusinesses();
-        }
+        } catch(e) { alert('Erro inesperado ao conectar.'); }
+    }
 
-        async function fetchRecommendations() {
-            try {
-                const response = await fetch(REC_SHEET_URL);
-                const text = await response.text();
-                const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-                const json = JSON.parse(jsonString);
-                const rows = json.table.rows;
-                
-                globalRecommendations = {};
-                rows.forEach(row => {
-                    const uId = row.c[0] ? String(row.c[0].v).trim() : '';
-                    const negId = row.c[1] ? String(row.c[1].v).trim() : '';
-                    if(negId && uId) {
-                        globalRecommendations[negId] = globalRecommendations[negId] || [];
-                        if(!globalRecommendations[negId].includes(uId)) {
-                            globalRecommendations[negId].push(uId);
-                        }
+    function logout() {
+        localStorage.removeItem('appUserId');
+        localStorage.removeItem('appUserEmail');
+        currentUserId = null;
+        currentUserEmail = null;
+        updateUserBar();
+        renderBusinesses();
+    }
+
+    async function fetchRecommendations() {
+        try {
+            const response = await fetch(REC_SHEET_URL);
+            const text = await response.text();
+            const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+            const json = JSON.parse(jsonString);
+            const rows = json.table.rows;
+            
+            globalRecommendations = {};
+            rows.forEach(row => {
+                const uId = row.c[0] ? String(row.c[0].v).trim() : '';
+                const negId = row.c[1] ? String(row.c[1].v).trim() : '';
+                if(negId && uId) {
+                    globalRecommendations[negId] = globalRecommendations[negId] || [];
+                    if(!globalRecommendations[negId].includes(uId)) {
+                        globalRecommendations[negId].push(uId);
                     }
-                });
-                renderBusinesses();
-            } catch(e) { console.error("Erro ao carregar recomendações:", e); }
-        }
-
-        // Função auxiliar para interpretar a data do Google Sheets ou texto digitado
-        function parseSheetDate(rawDate) {
-            if (!rawDate) return null;
-            
-            // Se for string no formato Date do GViz (ex: "Date(2026,6,20)")
-            if (typeof rawDate === 'string' && rawDate.startsWith('Date(')) {
-                const parts = rawDate.match(/\d+/g);
-                if (parts && parts.length >= 3) {
-                    return new Date(parts[0], parts[1], parts[2], 23, 59, 59);
                 }
-            }
-
-            // Se for string formatada "AAAA-MM-DD" ou "DD/MM/AAAA"
-            if (typeof rawDate === 'string') {
-                if (rawDate.includes('-')) {
-                    const [y, m, d] = rawDate.split('-');
-                    return new Date(y, m - 1, d, 23, 59, 59);
-                }
-                if (rawDate.includes('/')) {
-                    const [d, m, y] = rawDate.split('/');
-                    return new Date(y, m - 1, d, 23, 59, 59);
-                }
-            }
-
-            const d = new Date(rawDate);
-            if (!isNaN(d.getTime())) {
-                d.setHours(23, 59, 59);
-                return d;
-            }
-
-            return null;
-        }
-
-        async function fetchBusinesses() {
-            try {
-                const response = await fetch(BIZ_SHEET_URL);
-                const text = await response.text();
-                const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-                const json = JSON.parse(jsonString);
-                const rows = json.table.rows;
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); // Considera o dia atual inteiro até meia-noite
-
-                businesses = rows.map((row) => {
-                    if(row.c[0] && row.c[0].v === "NEG_ID") return null;
-                    
-                    // Lê a data da Coluna I (índice 8)
-                    const rawVencimento = row.c[8] ? (row.c[8].v || row.c[8].f) : null;
-                    const vencimentoDate = parseSheetDate(rawVencimento);
-
-                    // Valida se o status está ativo (se a data é maior ou igual a hoje)
-                    const isActive = vencimentoDate && vencimentoDate >= today;
-
-                    return {
-                        id: row.c[0] ? String(row.c[0].v).trim() : '',
-                        Nome: row.c[1] ? row.c[1].v : '',
-                        Categoria: row.c[2] ? row.c[2].v : '',
-                        Telefone: row.c[3] ? row.c[3].v : '',
-                        Endereco: row.c[4] ? row.c[4].v : '',
-                        Descricao: row.c[5] ? row.c[5].v : '',
-                        Imagem: row.c[6] ? row.c[6].v : '',
-                        Local: row.c[7] ? row.c[7].v : '',
-                        IsActive: isActive
-                    };
-                }).filter(b => b && b.IsActive); // Filtra mantendo APENAS negócios ativos (em dia)
-
-                populateFilters();
-                renderBusinesses();
-            } catch (error) { console.error("Erro na carga de negócios:", error); }
-        }
-
-        function populateFilters() {
-            const select = document.getElementById('categoryFilter');
-            if(!select) return;
-            select.innerHTML = '<option value="todos">Todos os ramos/categorias</option>';
-            
-            const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
-            categories.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat; opt.innerText = cat; select.appendChild(opt);
             });
-            select.addEventListener('change', () => renderBusinesses());
-            document.getElementById('searchInput').addEventListener('input', () => renderBusinesses());
-        }
-
-        window.toggleRecommend = async function(negId) {
-            if (!currentUserId) {
-                alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
-                window.toggleAuthForm();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return;
-            }
-            
-            globalRecommendations[negId] = globalRecommendations[negId] || [];
-            if(globalRecommendations[negId].includes(currentUserId)) {
-                globalRecommendations[negId] = globalRecommendations[negId].filter(id => id !== currentUserId);
-            } else {
-                globalRecommendations[negId].push(currentUserId);
-            }
             renderBusinesses();
+        } catch(e) { console.error("Erro ao carregar recomendações:", e); }
+    }
 
-            const formData = new URLSearchParams();
-            formData.append('action', 'toggleRecommend');
-            formData.append('negId', negId);
-            formData.append('userId', currentUserId);
-
-            try {
-                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
-                setTimeout(fetchRecommendations, 1000);
-            } catch(e) { console.error(e); }
-        };
-
-        function renderBusinesses() {
-            const container = document.getElementById('businessList');
-            if(!container) return;
-            container.innerHTML = '';
-
-            const selectedCategory = document.getElementById('categoryFilter').value;
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-
-            const filtered = businesses.filter(b => {
-                const matchesCategory = selectedCategory === 'todos' || b.Categoria === selectedCategory;
-                const matchesSearch = b.Nome.toLowerCase().includes(searchTerm);
-                return matchesCategory && matchesSearch;
-            });
-
-            if (filtered.length === 0) {
-                container.innerHTML = '<div class="status-message">Nenhum negócio ativo encontrado.</div>';
-                return;
+    function parseSheetDate(rawDate) {
+        if (!rawDate) return null;
+        
+        if (typeof rawDate === 'string' && rawDate.startsWith('Date(')) {
+            const parts = rawDate.match(/\d+/g);
+            if (parts && parts.length >= 3) {
+                return new Date(parts[0], parts[1], parts[2], 23, 59, 59);
             }
-
-            filtered.forEach(biz => {
-                const recs = globalRecommendations[biz.id] || [];
-                const totalRecommendations = recs.length;
-                const isRecommendedByMe = currentUserId ? recs.includes(currentUserId) : false;
-                
-                const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
-                const whatsappUrl = `https://wa.me/${cleanPhone}`;
-                
-                const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.85rem;background:#e2e8f0;">Sem foto cadastrada</div>`;
-                const buildingTag = biz.Local && biz.Local.toUpperCase() === "DO PRÉDIO" ? `<span class="tag-building">DO PRÉDIO</span>` : '';
-
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `
-                    ${imgTag}
-                    <div class="card-content">
-                        <div class="card-header-tags">
-                            <div class="card-category">${biz.Categoria || 'Geral'}</div>
-                            ${buildingTag}
-                        </div>
-                        <div class="card-title">${biz.Nome || 'Sem Nome'}</div>
-                        <div class="card-description">${biz.Descricao || 'Sem descrição.'}</div>
-                        <div class="card-info">
-                            <p><strong>📍 Endereço:</strong> ${biz.Endereco || 'Não informado'}</p>
-                            <p><strong>📞 Contato:</strong> ${biz.Telefone || 'Não informado'}</p>
-                        </div>
-                    </div>
-                    <div class="card-actions">
-                        ${cleanPhone ? `<a href="${whatsappUrl}" target="_blank" class="btn btn-contact">WhatsApp</a>` : ''}
-                        <button onclick="toggleRecommend('${biz.id}')" class="btn btn-recommend ${isRecommendedByMe ? 'active' : ''}">
-                            👍 Recomendo (${totalRecommendations})
-                        </button>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
         }
 
-        window.onload = init;
-    </script>
-</body>
+        if (typeof rawDate === 'string') {
+            if (rawDate.includes('-')) {
+                const [y, m, d] = rawDate.split('-');
+                return new Date(y, m - 1, d, 23, 59, 59);
+            }
+            if (rawDate.includes('/')) {
+                const [d, m, y] = rawDate.split('/');
+                return new Date(y, m - 1, d, 23, 59, 59);
+            }
+        }
+
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+            d.setHours(23, 59, 59);
+            return d;
+        }
+
+        return null;
+    }
+
+    async function fetchBusinesses() {
+        try {
+            const response = await fetch(BIZ_SHEET_URL);
+            const text = await response.text();
+            const jsonString = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+            const json = JSON.parse(jsonString);
+            const rows = json.table.rows;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            businesses = rows.map((row) => {
+                if(row.c[0] && row.c[0].v === "NEG_ID") return null;
+                
+                const rawVencimento = row.c[8] ? (row.c[8].v || row.c[8].f) : null;
+                const vencimentoDate = parseSheetDate(rawVencimento);
+                const isActive = vencimentoDate && vencimentoDate >= today;
+
+                return {
+                    id: row.c[0] ? String(row.c[0].v).trim() : '',
+                    Nome: row.c[1] ? row.c[1].v : '',
+                    Categoria: row.c[2] ? row.c[2].v : '',
+                    Telefone: row.c[3] ? row.c[3].v : '',
+                    Endereco: row.c[4] ? row.c[4].v : '',
+                    Descricao: row.c[5] ? row.c[5].v : '',
+                    Imagem: row.c[6] ? row.c[6].v : '',
+                    Local: row.c[7] ? row.c[7].v : '',
+                    IsActive: isActive
+                };
+            }).filter(b => b && b.IsActive);
+
+            populateFilters();
+            renderBusinesses();
+        } catch (error) { console.error("Erro na carga de negócios:", error); }
+    }
+
+    function populateFilters() {
+        const select = document.getElementById('categoryFilter');
+        if(!select) return;
+        select.innerHTML = '<option value="todos">Todos os ramos/categorias</option>';
+        
+        const categories = [...new Set(businesses.map(b => b.Categoria))].filter(Boolean);
+        categories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat; opt.innerText = cat; select.appendChild(opt);
+        });
+        select.addEventListener('change', () => renderBusinesses());
+        document.getElementById('searchInput').addEventListener('input', () => renderBusinesses());
+    }
+
+    window.toggleRecommend = async function(negId) {
+        if (!currentUserId) {
+            alert("Apenas usuários identificados podem recomendar! Utilize o botão de login no topo da página.");
+            window.toggleAuthForm();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+        
+        globalRecommendations[negId] = globalRecommendations[negId] || [];
+        if(globalRecommendations[negId].includes(currentUserId)) {
+            globalRecommendations[negId] = globalRecommendations[negId].filter(id => id !== currentUserId);
+        } else {
+            globalRecommendations[negId].push(currentUserId);
+        }
+        renderBusinesses();
+
+        const formData = new URLSearchParams();
+        formData.append('action', 'toggleRecommend');
+        formData.append('negId', negId);
+        formData.append('userId', currentUserId);
+
+        try {
+            await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+            setTimeout(fetchRecommendations, 1000);
+        } catch(e) { console.error(e); }
+    };
+
+    function renderBusinesses() {
+        const container = document.getElementById('businessList');
+        if(!container) return;
+        container.innerHTML = '';
+
+        const selectedCategory = document.getElementById('categoryFilter').value;
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+        const filtered = businesses.filter(b => {
+            const matchesCategory = selectedCategory === 'todos' || b.Categoria === selectedCategory;
+            const matchesSearch = b.Nome.toLowerCase().includes(searchTerm);
+            return matchesCategory && matchesSearch;
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="status-message">Nenhum negócio ativo encontrado.</div>';
+            return;
+        }
+
+        filtered.forEach(biz => {
+            const recs = globalRecommendations[biz.id] || [];
+            const totalRecommendations = recs.length;
+            const isRecommendedByMe = currentUserId ? recs.includes(currentUserId) : false;
+            
+            const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
+            const whatsappUrl = `https://wa.me/${cleanPhone}`;
+            
+            const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.85rem;background:#e2e8f0;">Sem foto cadastrada</div>`;
+            const buildingTag = biz.Local && biz.Local.toUpperCase() === "DO PRÉDIO" ? `<span class="tag-building">DO PRÉDIO</span>` : '';
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                ${imgTag}
+                <div class="card-content">
+                    <div class="card-header-tags">
+                        <div class="card-category">${biz.Categoria || 'Geral'}</div>
+                        ${buildingTag}
+                    </div>
+                    <div class="card-title">${biz.Nome || 'Sem Nome'}</div>
+                    <div class="card-description">${biz.Descricao || 'Sem descrição.'}</div>
+                    <div class="card-info">
+                        <p><strong>📍 Endereço:</strong> ${biz.Endereco || 'Não informado'}</p>
+                        <p><strong>📞 Contato:</strong> ${formatPhone(biz.Telefone)}</p>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    ${cleanPhone ? `<a href="${whatsappUrl}" target="_blank" class="btn btn-contact">WhatsApp</a>` : ''}
+                    <button onclick="toggleRecommend('${biz.id}')" class="btn btn-recommend ${isRecommendedByMe ? 'active' : ''}">
+                        👍 Recomendo (${totalRecommendations})
+                    </button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    window.onload = init;
+</script></body>
 </html>
