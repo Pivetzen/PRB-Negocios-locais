@@ -213,6 +213,7 @@
         .btn-recommend { background-color: #e2e8f0; color: var(--text); }
         .btn-recommend.active { background-color: var(--success); color: white; }
         .btn-primary { background-color: var(--primary); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
 
         .btn-trigger-auth {
             background-color: var(--primary);
@@ -271,7 +272,6 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQymy9p164zRXSejyK0n1q7RIOV7qcdD9kL9C4xK7rhGQJZaF6HrBK-ydsczinL1SXcA/exec'; 
         const SHEET_ID = '1xHCYeMoeJf0_TItdUivSCH_nTe-2wh5Z0FP9QX0Ok5U';
         
-        // URLs específicas para puxar os dados de cada aba de forma otimizada
         const BIZ_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Negocios&tqx=out:json`;
         const REC_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=Recomendacoes&tqx=out:json`;
 
@@ -473,6 +473,39 @@
             } catch(e) { console.error("Erro ao carregar recomendações:", e); }
         }
 
+        // Função auxiliar para interpretar a data do Google Sheets ou texto digitado
+        function parseSheetDate(rawDate) {
+            if (!rawDate) return null;
+            
+            // Se for string no formato Date do GViz (ex: "Date(2026,6,20)")
+            if (typeof rawDate === 'string' && rawDate.startsWith('Date(')) {
+                const parts = rawDate.match(/\d+/g);
+                if (parts && parts.length >= 3) {
+                    return new Date(parts[0], parts[1], parts[2], 23, 59, 59);
+                }
+            }
+
+            // Se for string formatada "AAAA-MM-DD" ou "DD/MM/AAAA"
+            if (typeof rawDate === 'string') {
+                if (rawDate.includes('-')) {
+                    const [y, m, d] = rawDate.split('-');
+                    return new Date(y, m - 1, d, 23, 59, 59);
+                }
+                if (rawDate.includes('/')) {
+                    const [d, m, y] = rawDate.split('/');
+                    return new Date(y, m - 1, d, 23, 59, 59);
+                }
+            }
+
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+                d.setHours(23, 59, 59);
+                return d;
+            }
+
+            return null;
+        }
+
         async function fetchBusinesses() {
             try {
                 const response = await fetch(BIZ_SHEET_URL);
@@ -481,19 +514,31 @@
                 const json = JSON.parse(jsonString);
                 const rows = json.table.rows;
                 
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Considera o dia atual inteiro até meia-noite
+
                 businesses = rows.map((row) => {
-                    if(row.c[0] && row.c[0].v === "NEG_ID") return null; 
+                    if(row.c[0] && row.c[0].v === "NEG_ID") return null;
+                    
+                    // Lê a data da Coluna I (índice 8)
+                    const rawVencimento = row.c[8] ? (row.c[8].v || row.c[8].f) : null;
+                    const vencimentoDate = parseSheetDate(rawVencimento);
+
+                    // Valida se o status está ativo (se a data é maior ou igual a hoje)
+                    const isActive = vencimentoDate && vencimentoDate >= today;
+
                     return {
-                        id: row.c[0] ? String(row.c[0].v).trim() : '', // Usando NEG_ID real da planilha
+                        id: row.c[0] ? String(row.c[0].v).trim() : '',
                         Nome: row.c[1] ? row.c[1].v : '',
                         Categoria: row.c[2] ? row.c[2].v : '',
                         Telefone: row.c[3] ? row.c[3].v : '',
                         Endereco: row.c[4] ? row.c[4].v : '',
                         Descricao: row.c[5] ? row.c[5].v : '',
-                        Imagem: row.c[6] ? row.c[6].v : '', // Mapeamento da coluna de imagem
-                        Local: row.c[7] ? row.c[7].v : ''
+                        Imagem: row.c[6] ? row.c[6].v : '',
+                        Local: row.c[7] ? row.c[7].v : '',
+                        IsActive: isActive
                     };
-                }).filter(Boolean);
+                }).filter(b => b && b.IsActive); // Filtra mantendo APENAS negócios ativos (em dia)
 
                 populateFilters();
                 renderBusinesses();
@@ -532,7 +577,7 @@
 
             const formData = new URLSearchParams();
             formData.append('action', 'toggleRecommend');
-            formData.append('negId', negId); // Enviando o NEG_ID real para salvar na tabela relacional
+            formData.append('negId', negId);
             formData.append('userId', currentUserId);
 
             try {
@@ -556,7 +601,7 @@
             });
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="status-message">Nenhum negócio encontrado.</div>';
+                container.innerHTML = '<div class="status-message">Nenhum negócio ativo encontrado.</div>';
                 return;
             }
 
@@ -568,7 +613,6 @@
                 const cleanPhone = biz.Telefone ? String(biz.Telefone).replace(/\D/g, '') : '';
                 const whatsappUrl = `https://wa.me/${cleanPhone}`;
                 
-                // Exibindo imagem vinda da planilha ou placeholder padrão elegante caso esteja vazio
                 const imgTag = biz.Imagem ? `<img class="card-img" src="${biz.Imagem}" alt="${biz.Nome}">` : `<div class="card-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.85rem;background:#e2e8f0;">Sem foto cadastrada</div>`;
                 const buildingTag = biz.Local && biz.Local.toUpperCase() === "DO PRÉDIO" ? `<span class="tag-building">DO PRÉDIO</span>` : '';
 
